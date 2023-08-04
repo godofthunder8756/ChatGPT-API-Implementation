@@ -1,0 +1,96 @@
+﻿@page "/help"
+
+@using GallagherChat.Data
+<PageTitle>Help</PageTitle>
+
+
+<body>
+    <main>
+        <h1 class="faq-heading">FAQs</h1>
+        <section class="faq-container">
+            <div class="faq-grid">
+
+                <div class="card">
+                    <h1 class="faq-text">What is Gallagher Chat?</h1>
+                    <div class="faq-body">
+                        <p>
+                            Gallagher Chat is a ChatGPT alternative that uses natural
+                            language processing to understand and respond to user queries
+                            and conversations
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h1 class="faq-text">What kind of questions can I ask Gallagher Chat?</h1>
+                    <div class="faq-body">
+                        <p>
+                            Gallagher Chat can answer a wide range of questions on various topics,
+                            including general knowledge, current events, entertainment, and more.
+                        </p>
+                    </div>
+                </div>
+
+
+                <div class="card">
+                    <h1 class="faq-text">Why use Gallagher Chat instead of ChatGPT?</h1>
+                    <div class="faq-body">
+                        <p>
+                            Gallagher Chat utilizes answers similar to what you would get from
+                            ChatGPT throught the Open AI API. The use of our application over that of
+                            ChatGPT ensures information security.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h1 class="faq-text">How accurate are the responses from Gallagher Chat?</h1>
+                    <div class="faq-body">
+                        <p>
+                            Gallagher Chat aims to generate accurate and relevant responses to each and
+                            every question. However, please be aware that it may occasionally produce
+                            incorrect answers. Make sure to verify critical information from reliable sources.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h1 class="faq-text">What can I input into Gallagher Chat?</h1>
+                    <div class="faq-body">
+                        <p>
+                            Gallagher Chat is NOT meant for any Personally-Identifiable-Information (PII). This means
+                            that all users should take into account what they are asking, before they press 'Ask'.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h1 class="faq-text">Empty Question?</h1>
+                    <div class="faq-body">
+                        <p>Empty Answer Field</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+
+<style>
+
+    .card {
+        background-color: #eee;
+        color: #444;
+        cursor: pointer;
+        padding: 18px;
+        width: 100%;
+        text-align: left;
+        border: none;
+        outline: none;
+        transition: 0.4s;
+        margin-bottom: 1rem;
+    }
+
+        .active, .card:hover {
+            background-color: #ccc;
+        }
+</style>

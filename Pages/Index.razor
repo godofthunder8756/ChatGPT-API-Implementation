@@ -1,0 +1,289 @@
+﻿@page "/"
+
+@using Azure
+@using Azure.AI.OpenAI
+@using Microsoft.AspNetCore.Components.Web
+@using Markdig
+@using Microsoft.JSInterop
+
+
+
+@inject IConfiguration _configuration
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JSRuntime
+@inject ILogger<Index> _logger
+
+<PageTitle>Gallagher Chat</PageTitle>
+
+<div class="col pt-4">
+    <div>
+        <h1>Chat</h1>
+    </div>
+  
+    <div class="modal" tabindex="-1" role="dialog" id="disclosureModal">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Disclosure Agreement</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" style="font-size: 10px;">
+                    <p>
+                        Disclaimer: 
+
+                        You must not enter any Gallagher information classified as ‘Confidential’ or ‘Restricted’ into any unapproved AI System. To avoid any doubt, all publicly accessible AI systems are unapproved AI Systems and you should not be uploading any Gallagher confidential or restricted information.
+
+                        You must not use such AI Systems to conduct any Gallagher business. We actively monitor uploads of Gallagher information from the Gallagher network to publicly accessible AI tools and reserve the right to take action and/or block usage.
+
+                        You may use publicly accessible AI systems to help you become more productive, but you must abide by the above rules. Examples of permissible use include asking an AI System to draft a sample job description or to provide a summary of a particular topic.
+
+                        If you are using a Gallagher approved AI System, the output from that system is the Company’s proprietary information and must not be shared outside of Gallagher.
+
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="ModalRedirectUser()">Disagree</button>
+                    <button type="button" class="btn btn-primary" data-dismiss="modal" onclick="ModalClose()">Agree</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+    <div id="chatcontainer" style="padding-top: 10px; border-radius: 10px;">
+        @foreach (var item in messages)
+        {
+            <div>
+                @if (item.Role == ChatRole.User)
+                {
+                    <div style="float: right">
+                        <img src="/images/person.svg" style="width: 40px; margin-right: 10px;" />
+                    </div>
+                    <div class="@item.Role.ToString().ToLower()">
+                        <div class="msg">
+                            @item.Prompt
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div style="float: left">
+                        <img src="/images/robot.svg" style="width: 40px; margin-left: 10px" />
+                    </div>
+                    <div class="@item.Role.ToString().ToLower()">
+                        <div class="msg">
+                            @if (item.Prompt != null)
+                            {
+                                @((MarkupString)item.Prompt)
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="footer">
+        @if (!Processing)
+        {
+            <input id="txtPrompt" type="text" placeholder="" @bind="prompt" style=" width:100%;" onkeyup="promptCheck()" @ref="promptElement" />
+            <br />
+            <button id="submitPrompt" class="btn btn-primary" data-bs-toggle="tooltip" data-bs-placement="top" title="Send" @onclick="CallChatGPT" style="margin-top: 5px;">
+                <svg src="/images/send.svg" width="16" height="16" fill="currentColor" class="bi bi-send" viewBox="0 0 16 16">
+                    <path d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11ZM6.636 10.07l2.761 4.338L14.13 2.576 6.636 10.07Zm6.787-8.201L1.591 6.602l4.339 2.76 7.494-7.493Z"></path>
+                </svg>
+                Send
+            </button>
+            <span>&nbsp;</span>
+            <button class="btn btn-outline-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Reset Chat" @onclick="RestartChatGPT" style="margin-top: 5px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eraser" viewBox="0 0 16 16">
+                    <path d="M8.086 2.207a2 2 0 0 1 2.828 0l3.879 3.879a2 2 0 0 1 0 2.828l-5.5 5.5A2 2 0 0 1 7.879 15H5.12a2 2 0 0 1-1.414-.586l-2.5-2.5a2 2 0 0 1 0-2.828l6.879-6.879zm2.121.707a1 1 0 0 0-1.414 0L4.16 7.547l5.293 5.293 4.633-4.633a1 1 0 0 0 0-1.414l-3.879-3.879zM8.746 13.547 3.453 8.254 1.914 9.793a1 1 0 0 0 0 1.414l2.5 2.5a1 1 0 0 0 .707.293H7.88a1 1 0 0 0 .707-.293l.16-.16z" />
+                </svg>
+                Reset
+            </button>
+        }
+        else
+        {
+            <br>
+            <h4>Processing...</h4>
+        }
+        <br /><p style="color:red">@ErrorMessage</p>
+    </div>
+</div>
+
+
+@code {
+    string oaiEndpoint = "";
+    string oaiKey = "";
+    string oaiDeployment = "";
+    List<MessageSave> messages = new List<MessageSave>();
+    string prompt = "";
+    string ErrorMessage = "";
+    bool Processing = false;
+    int TotalTokens = 0;
+    private bool IsPromptEmpty => string.IsNullOrWhiteSpace(prompt);
+    private ElementReference promptElement;
+
+
+    protected override void OnInitialized()
+    {
+        oaiEndpoint = _configuration["AzureOpenAI:Endpoint"] ?? "";
+        oaiKey = _configuration["AzureOpenAI:Key"] ?? "";
+        oaiDeployment = _configuration["AzureOpenAI:Deployment"] ?? "";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JSRuntime.InvokeAsync<string>("ScrollToBottom", "chatcontainer");
+            // For snapping cursor back to textox
+            await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('txtPrompt').focus();");
+
+            if (firstRender)
+            {
+                await JSRuntime.InvokeVoidAsync("onPageLoad");
+            }
+        }
+        catch
+        {
+            // do nothing if this fails
+        }
+    }
+
+    public class MessageSave
+    {
+        public string? Prompt { get; set; }
+        public ChatRole Role { get; set; }
+        public int Tokens { get; set; }
+    }
+
+    void RestartChatGPT()
+    {
+        /*prompt = "Tell me about the company AJ Gallagher?";*/
+        messages = new List<MessageSave>();
+        TotalTokens = 0;
+        ErrorMessage = "";
+        StateHasChanged();
+    }
+
+    async Task CallChatGPT()
+    {
+        var authstate = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        string _prompt = prompt; // Store the current value
+        _logger.LogInformation($"prompt: {_prompt}");
+        //prompt = ""; // Clear the input box
+        try
+        {
+            if (IsPromptEmpty) { return; }
+
+            // Set Processing to true to indicate that the method is processing
+            Processing = true;
+            // Call StateHasChanged to refresh the UI
+            StateHasChanged();
+            // Clear any previous error messages
+            ErrorMessage = "";
+            // Create a new OpenAIClient object
+            // with the provided API key and organization
+            //var api = new OpenAIClient(new OpenAIAuthentication(oaiKey, oaiEndpoint));
+            var api = new OpenAIClient(
+                    new Uri(oaiEndpoint),
+                    new AzureKeyCredential(oaiKey));
+
+            // Create a new list of chatMessages objects and initialize it with the
+            // system's introductory message
+            var chatMessages = new List<ChatMessage>();
+            chatMessages.Add(new ChatMessage(ChatRole.System, "You are helpful Assistant"));
+            // Add all existing messages to chatMessages
+            foreach (var item in messages)
+            {
+                chatMessages.Add(new ChatMessage(item.Role, item.Prompt));
+            }
+            // Add the new message to chatMessages
+            chatMessages.Add(new ChatMessage(ChatRole.User, _prompt));
+            // Call ChatGPT
+            // Create a new ChatRequest object with the chat prompts and pass
+            // it to the API's GetCompletionAsync method
+            //var chatRequest = new ChatRequest(chatMessages);
+            //var result = await api.ChatEndpoint.GetCompletionAsync(chatRequest);
+
+            var chatCompletions = new ChatCompletionsOptions()
+                {
+                    Temperature = float.Parse(_configuration["ModelParams:Temperature"]),
+                    MaxTokens = int.Parse(_configuration["ModelParams:MaxTokens"]),
+                    NucleusSamplingFactor = float.Parse(_configuration["ModelParams:NucleusSamplingFactor"]),
+                    FrequencyPenalty = float.Parse(_configuration["ModelParams:FrequencyPenalty"]),
+                    PresencePenalty = float.Parse(_configuration["ModelParams:PresencePenalty"])
+                };
+            foreach (var item in chatMessages)
+            {
+                chatCompletions.Messages.Add(new ChatMessage(item.Role, item.Content));
+            }
+            messages.Add(new MessageSave
+                {
+                    Prompt = _prompt,
+                    Role = ChatRole.User
+                    //Tokens = response.Usage.PromptTokens
+                });
+            Response<StreamingChatCompletions> response = await api.GetChatCompletionsStreamingAsync(oaiDeployment, chatCompletions);
+            //Response<ChatCompletions> response = api.GetChatCompletions(oaiDeployment, chatCompletions);
+            using StreamingChatCompletions streamingChatCompletions = response.Value;
+            MessageSave ms = new MessageSave { Prompt = "", Role = ChatRole.Assistant };
+
+            messages.Add(ms);
+            await foreach (StreamingChatChoice choice in streamingChatCompletions.GetChoicesStreaming())
+            {
+                await foreach (ChatMessage message in choice.GetMessageStreaming())
+                {
+                    ms.Prompt += message.Content;
+                    await Task.Delay(1);
+                    messages[messages.Count - 1] = ms;
+                    await Task.Delay(1);
+                    StateHasChanged();
+                }
+
+                var pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+                messages[messages.Count - 1].Prompt = Markdown.ToHtml(messages[messages.Count - 1].Prompt, pipeline);
+                StateHasChanged();
+
+            }
+            //using StreamingChatCompletions streamingChatCompletions = response.Value.GetChoicesStreaming();
+
+            // Create a new MessageSave object with the user's prompt and other
+            // details and add it to the messages list
+            
+            // Create a new MessageSave object with the response and other details
+            // and add it to the messages list
+            //messages.Add(new MessageSave
+            //    {
+            //        Prompt = response.Value.Choices[0].Message.Content,
+            //        Role = ChatRole.Assistant
+            //        //Tokens = .Usage.CompletionTokens
+            //    });
+            // Update the total number of tokens used by the API
+            //TotalTokens = TotalTokens + result.Usage.TotalTokens;
+            
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex.Message);
+            // Set ErrorMessage to the exception message if an error occurs
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            // Clear the prompt variable
+            prompt = "";
+            // Set Processing to false to indicate
+            // that the method is done processing
+            Processing = false;
+            // Call StateHasChanged to refresh the UI
+            StateHasChanged();
+        }
+    }
+}
